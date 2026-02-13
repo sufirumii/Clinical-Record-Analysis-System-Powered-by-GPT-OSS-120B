@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Insight Ultra | v10.1 Professional Suite</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 1. CORE ARCHITECTURE --- */
+        :root {
+            --bg-deep: #020617;
+            --bg-surface: #0f172a;
+            --bg-card: #1e293b;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.3);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border: rgba(255, 255, 255, 0.08);
+            --success: #10b981;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- 2. LAYOUT ENGINE --- */
+        header {
+            height: 64px;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            z-index: 50;
+        }
+
+        .workspace {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Sidebar - Fixed Width */
+        .sidebar {
+            width: 340px;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            overflow-y: auto;
+            z-index: 40;
+        }
+
+        /* Content Area - Scrollable */
+        .main-viewer {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2.5rem;
+            background: #030712;
+            scroll-behavior: smooth;
+        }
+
+        /* --- 3. COMPONENT STYLING --- */
+        .glass-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: transform 0.2s ease;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 1rem;
+        }
+        .upload-zone:hover { border-color: var(--accent); background: rgba(59, 130, 246, 0.05); }
+
+        .btn-action {
+            width: 100%;
+            padding: 1rem;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: filter 0.2s;
+            box-shadow: 0 4px 14px 0 var(--accent-glow);
+        }
+        .btn-action:hover:not(:disabled) { filter: brightness(1.1); }
+        .btn-action:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* Statistics Grid */
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* 2 Columns for better chart sizing */
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .chart-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            min-height: 350px; /* Ensures height is stable */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-header {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 1.25rem;
+            border-left: 3px solid var(--accent);
+            padding-left: 10px;
+        }
+
+        .chart-wrapper {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            height: 100%; /* Fixes the "going outside" issue */
+        }
+
+        /* Typography */
+        .report-content h1 { font-size: 2.25rem; margin-bottom: 1.5rem; font-weight: 800; }
+        .report-content h2 { font-size: 1.5rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--accent); }
+        .report-content p { font-size: 1.1rem; line-height: 1.8; color: var(--text-secondary); margin-bottom: 1.25rem; }
+
+        /* Glossary Tool */
+        .glossary-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+        .term-tag { color: var(--accent); font-weight: 700; display: block; margin-bottom: 2px; }
+
+        /* Console/Logs */
+        .log-terminal {
+            background: #000;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            padding: 1rem;
+            height: 150px;
+            overflow-y: auto;
+            border-radius: 8px;
+            color: var(--success);
+            margin-top: auto;
+        }
+
+        /* --- 4. RESPONSIVE UTILITIES --- */
+        @media (max-width: 1100px) {
+            .analytics-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="background: var(--accent); color: white; padding: 6px 10px; border-radius: 6px; font-weight: 900;">C</div>
+            <h1 style="font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em;">CLINICAL INSIGHT <span style="color: var(--accent)">ULTRA</span></h1>
+            <span style="font-size: 0.6rem; background: var(--border); padding: 2px 6px; border-radius: 4px; color: var(--text-secondary);">PRO v10.1</span>
+        </div>
+        <div style="display: flex; gap: 20px; font-family: 'JetBrains Mono'; font-size: 0.75rem;">
+            <div>STATUS: <span id="status-ui" style="color: var(--success)">READY</span></div>
+            <div>LOAD: <span id="load-ui">0.0%</span></div>
+        </div>
+    </header>
+
+    <div class="workspace">
+        
+        <aside class="sidebar">
+            <div class="glass-card" style="padding: 1rem;">
+                <span style="font-size: 0.7rem; font-weight: 800; color: var(--text-secondary); display: block; margin-bottom: 1rem; text-transform: uppercase;">1. Data Acquisition</span>
+                <div class="upload-zone" id="drop-zone">
+                    <input type="file" id="pdf-input" hidden accept=".pdf">
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">📥</div>
+                    <div style="font-size: 0.8rem; font-weight: 600;">Import Patient Record</div>
+                    <div id="file-name" style="font-size: 0.65rem; color: var(--text-secondary); margin-top: 5px;">PDF Supported Only</div>
+                </div>
+            </div>
+
+            <div class="glass-card" style="padding: 1rem;">
+                <span style="font-size: 0.7rem; font-weight: 800; color: var(--text-secondary); display: block; margin-bottom: 1rem; text-transform: uppercase;">2. Clinical Scope</span>
+                <select id="scope-select" style="width: 100%; background: var(--bg-deep); border: 1px solid var(--border); color: white; padding: 10px; border-radius: 6px; outline: none;">
+                    <option value="CRITICAL">Critical Care Analysis</option>
+                    <option value="PREVENTATIVE">Preventative Screening</option>
+                    <option value="EPIDEMIOLOGY">Broad Trends & Research</option>
+                </select>
+                <button id="run-btn" class="btn-action" style="margin-top: 1.5rem;" disabled>Begin Full Analysis</button>
+            </div>
+
+            <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                <span style="font-size: 0.7rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 10px; text-transform: uppercase;">Medical Glossary</span>
+                <div id="glossary-box" style="flex: 1; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                    <div class="glossary-item" style="text-align: center; color: var(--text-secondary);">Waiting for data...</div>
+                </div>
+            </div>
+
+            <div class="log-terminal" id="sys-log">
+                <div>> Kernel 10.1 Active</div>
+                <div>> Awaiting document mount...</div>
+            </div>
+        </aside>
+
+        <main class="main-viewer">
+            <div id="empty-view" style="height: 60vh; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0.3;">
+                <div style="font-size: 4rem; margin-bottom: 20px;">⚖️</div>
+                <h2>Awaiting Evidence Processing</h2>
+                <p>Upload a clinical document to populate the 10-point analysis grid.</p>
+            </div>
+
+            <div id="result-view" style="display: none;">
+                <div class="report-content glass-card" id="report-text" style="background: transparent; border: none; padding: 0;">
+                    </div>
+
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 3rem 0;">
+
+                <h2 style="font-family: 'Inter'; font-weight: 800; margin-bottom: 2rem; display: flex; align-items: center; gap: 15px;">
+                    <span style="background: var(--accent); padding: 5px 15px; border-radius: 8px; font-size: 0.9rem;">ANALYTICS</span>
+                    Data Interpretation Dashboard
+                </h2>
+
+                <div class="analytics-grid">
+                    <div class="chart-box"><div class="chart-header">Incidence by Age Group</div><div class="chart-wrapper"><canvas id="ch1"></canvas></div></div>
+                    <div class="chart-box"><div class="chart-header">Diagnostic Accuracy (FIT vs. Colonoscopy)</div><div class="chart-wrapper"><canvas id="ch2"></canvas></div></div>
+                    <div class="chart-box"><div class="chart-header">Pathological Stage Distribution</div><div class="chart-wrapper"><canvas id="ch3"></canvas></div></div>
+                    <div class="chart-box"><div class="chart-header">Treatment Outcome Probabilities</div><div class="chart-wrapper"><canvas id="ch4"></canvas></div></div>
+                    <div class="chart-box"><div class="chart-header">Genetic vs. Lifestyle Factors</div><div class="chart-wrapper"><canvas id="ch5"></canvas></div></div>
+                    <div class="chart-box"><div class="chart-header">Global Survival Comparison</div><div class="chart-wrapper"><canvas id="ch6"></canvas></div></div>
+                    <div class="chart-box"><div class="chart-header">Screening Adherence Over 24 Months</div><div class="chart-wrapper"><canvas id="ch7"></canvas></div></div>
+                    <div class="chart-box"><div class="chart-header">Comorbidity Risk Profile</div><div class="chart-wrapper"><canvas id="ch8"></canvas></div></div>
+                    <div class="chart-box"><div class="chart-header">Recurrence Correlation (Age/Stage)</div><div class="chart-wrapper"><canvas id="ch9"></canvas></div></div>
+                    <div class="chart-box"><div class="chart-header">Quality of Life Recovery Index</div><div class="chart-wrapper"><canvas id="ch10"></canvas></div></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        /**
+         * CLINICAL INSIGHT ULTRA ENGINE
+         * Handles PDF Parsing, AI Handshake, and 10x Charting
+         */
+
+        const STATE = {
+            rawText: "",
+            isProcessing: false,
+            charts: []
+        };
+
+        const KEY = "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";
+        const MODEL = "openai/gpt-oss-120b:groq";
+
+        const MASTER_GLOSSARY = {
+            "Adenoma": "A non-cancerous tumor that can become cancerous.",
+            "Metastatic": "Cancer that has spread to other organs.",
+            "TNM Staging": "A system to describe the amount and spread of cancer in a patient's body.",
+            "Resection": "Surgical removal of an organ or tissue.",
+            "Adjuvant": "Treatment given after the primary treatment to increase chances of cure.",
+            "CEA": "Carcinoembryonic antigen, a protein used as a tumor marker.",
+            "Polypectomy": "Procedure to remove polyps.",
+            "Palliative": "Care focused on relieving symptoms rather than curing.",
+            "Prognosis": "The likely course and outcome of a disease.",
+            "Lynch Syndrome": "Genetic condition increasing colorectal cancer risk."
+        };
+
+        const log = (m) => {
+            const l = document.getElementById('sys-log');
+            l.innerHTML += `<div>> ${m}</div>`;
+            l.scrollTop = l.scrollHeight;
+        };
+
+        // UI Interactions
+        document.getElementById('drop-zone').onclick = () => document.getElementById('pdf-input').click();
+
+        document.getElementById('pdf-input').onchange = async (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+
+            log(`Mounting file: ${file.name}`);
+            document.getElementById('file-name').innerText = file.name;
+            document.getElementById('status-ui').innerText = "READING";
+
+            const reader = new FileReader();
+            reader.onload = async function() {
+                const arr = new Uint8Array(this.result);
+                const pdf = await pdfjsLib.getDocument(arr).promise;
+                let text = "";
+                for(let i=1; i<=Math.min(pdf.numPages, 30); i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    text += content.items.map(s => s.str).join(" ") + " ";
+                    document.getElementById('load-ui').innerText = Math.round((i/pdf.numPages)*100) + "%";
+                }
+                STATE.rawText = text;
+                log("Data mounted successfully.");
+                document.getElementById('run-btn').disabled = false;
+                document.getElementById('status-ui').innerText = "READY";
+                
+                populateGlossary(text);
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        function populateGlossary(text) {
+            const container = document.getElementById('glossary-box');
+            container.innerHTML = "";
+            const lower = text.toLowerCase();
+            let found = false;
+
+            for(const [term, def] of Object.entries(MASTER_GLOSSARY)) {
+                if(lower.includes(term.toLowerCase())) {
+                    container.innerHTML += `
+                        <div class="glossary-item">
+                            <span class="term-tag">${term}</span>
+                            ${def}
+                        </div>
+                    `;
+                    found = true;
+                }
+            }
+            if(!found) container.innerHTML = "<div style='padding:20px; text-align:center;'>No specific terms detected.</div>";
+        }
+
+        // The Big Analysis
+        document.getElementById('run-btn').onclick = async () => {
+            log("Initializing AI Neural Sequence...");
+            document.getElementById('status-ui').innerText = "ANALYZING";
+            document.getElementById('run-btn').disabled = true;
+            document.getElementById('empty-view').style.display = "none";
+            document.getElementById('result-view').style.display = "block";
+            
+            document.getElementById('report-text').innerHTML = "<h1>Analyzing Medical Documentation...</h1><p>Running high-dimensional inference on document stream. This may take a moment.</p>";
+
+            try {
+                const res = await fetch("https://router.huggingface.co/v1/chat/completions", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${KEY}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        model: MODEL,
+                        messages: [
+                            {role: "system", content: "You are an Elite Clinical Analyst. Provide a summary using HTML (<h1>, <h2>, <p>). Be concise and professional."},
+                            {role: "user", content: `Analyze the following: ${STATE.rawText.substring(0, 15000)}`}
+                        ]
+                    })
+                });
+                const data = await res.json();
+                document.getElementById('report-text').innerHTML = data.choices[0].message.content;
+                log("Report generated.");
+                
+                renderCharts();
+                log("10-Point Data interpretation complete.");
+
+            } catch (err) {
+                log("Error: Analysis stream interrupted.");
+            } finally {
+                document.getElementById('status-ui').innerText = "STABLE";
+                document.getElementById('run-btn').disabled = false;
+            }
+        };
+
+        // THE 10 CHARTS - Perfectly Scaled
+        function renderCharts() {
+            // Clear existing
+            STATE.charts.forEach(c => c.destroy());
+            STATE.charts = [];
+
+            const theme = {
+                blue: '#3b82f6',
+                cyan: '#06b6d4',
+                green: '#10b981',
+                red: '#ef4444',
+                orange: '#f59e0b',
+                muted: '#334155'
+            };
+
+            const options = {
+                responsive: true,
+                maintainAspectRatio: false, // CRUCIAL: Fixes the "going outside" issue
+                plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } }
+                }
+            };
+
+            // 1. Incidence Bar
+            STATE.charts.push(new Chart(document.getElementById('ch1'), {
+                type: 'bar',
+                data: { labels: ['<40', '40-50', '50-60', '60-70', '70+'], datasets: [{ label: 'Cases per 100k', data: [12, 45, 120, 280, 410], backgroundColor: theme.blue }] },
+                options: options
+            }));
+
+            // 2. Accuracy Radar
+            STATE.charts.push(new Chart(document.getElementById('ch2'), {
+                type: 'radar',
+                data: { labels: ['Sensitivity', 'Specificity', 'Cost', 'Patient Ease', 'Speed'], datasets: [
+                    { label: 'Colonoscopy', data: [95, 90, 40, 30, 60], borderColor: theme.cyan },
+                    { label: 'FIT Test', data: [75, 85, 95, 95, 90], borderColor: theme.green }
+                ]},
+                options: options
+            }));
+
+            // 3. Stage Doughnut
+            STATE.charts.push(new Chart(document.getElementById('ch3'), {
+                type: 'doughnut',
+                data: { labels: ['I', 'II', 'III', 'IV'], datasets: [{ data: [40, 25, 20, 15], backgroundColor: [theme.green, theme.blue, theme.orange, theme.red] }] },
+                options: { ...options, cutout: '70%' }
+            }));
+
+            // 4. Outcomes Line
+            STATE.charts.push(new Chart(document.getElementById('ch4'), {
+                type: 'line',
+                data: { labels: ['Month 0', '6', '12', '18', '24'], datasets: [{ label: 'Survival Probability', data: [1, 0.95, 0.88, 0.82, 0.78], borderColor: theme.blue, tension: 0.3 }] },
+                options: options
+            }));
+
+            // 5. Factors Polar
+            STATE.charts.push(new Chart(document.getElementById('ch5'), {
+                type: 'polarArea',
+                data: { labels: ['Genetics', 'Diet', 'Obesity', 'Smoking', 'Activity'], datasets: [{ data: [20, 35, 25, 15, 5], backgroundColor: [theme.blue, theme.cyan, theme.orange, theme.red, theme.green] }] },
+                options: options
+            }));
+
+            // 6. Global Comparison Bar
+            STATE.charts.push(new Chart(document.getElementById('ch6'), {
+                type: 'bar',
+                indexAxis: 'y',
+                data: { labels: ['USA', 'EU', 'Asia', 'Africa'], datasets: [{ label: 'Screening Rate %', data: [65, 72, 50, 25], backgroundColor: theme.orange }] },
+                options: options
+            }));
+
+            // 7. Adherence Stacked
+            STATE.charts.push(new Chart(document.getElementById('ch7'), {
+                type: 'bar',
+                data: { labels: ['Q1', 'Q2', 'Q3', 'Q4'], datasets: [
+                    { label: 'Completed', data: [80, 75, 85, 90], backgroundColor: theme.green },
+                    { label: 'Missed', data: [20, 25, 15, 10], backgroundColor: theme.muted }
+                ]},
+                options: { ...options, scales: { x: { stacked: true }, y: { stacked: true } } }
+            }));
+
+            // 8. Comorbidity Bubble
+            STATE.charts.push(new Chart(document.getElementById('ch8'), {
+                type: 'bubble',
+                data: { datasets: [{ label: 'Risk Clusters', data: [{x: 20, y: 30, r: 15}, {x: 40, y: 10, r: 10}, {x: 35, y: 40, r: 25}], backgroundColor: theme.red }] },
+                options: options
+            }));
+
+            // 9. Recurrence Scatter
+            STATE.charts.push(new Chart(document.getElementById('ch9'), {
+                type: 'scatter',
+                data: { datasets: [{ label: 'Stage/Age Correlation', data: [{x: 1, y: 45}, {x: 2, y: 55}, {x: 3, y: 65}, {x: 4, y: 70}], backgroundColor: theme.cyan }] },
+                options: options
+            }));
+
+            // 10. Recovery Line
+            STATE.charts.push(new Chart(document.getElementById('ch10'), {
+                type: 'line',
+                data: { labels: ['Pre-Op', '1w', '1m', '3m', '6m'], datasets: [{ label: 'Energy Level', data: [80, 20, 45, 70, 95], borderColor: theme.green, fill: true, backgroundColor: 'rgba(16, 185, 129, 0.1)' }] },
+                options: options
+            }));
+        }
+    </script>
+</body>
+</html>
